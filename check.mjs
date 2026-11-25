@@ -111,7 +111,8 @@ async function checkAll(watches, topic, alerted) {
                 }
             }
             if (!found.length) continue;
-            const link = `${w.movieUrl}?fromdate=${found[0].date}`;
+            // Tapping the alarm opens TicketBookie, which takes you to the show (and with Auto-Book, to payment with your seats)
+            const link = /^https:\/\/[^/]+\/\?book=/.test(w.bookUrl || '') ? w.bookUrl : `${w.movieUrl}?fromdate=${found[0].date}`;
             const lines = found.slice(0, 4).map(m => `${m.cinema}, ${prettyDate(m.date)}: ${m.shows.slice(0, 4).map(s => s.time + (s.format ? ` (${s.format})` : '')).join(', ')}`);
             const message = [`Booking is open for ${w.movieTitle}.`, ...lines, found[0].shows[0].prices ? `Tickets ${found[0].shows[0].prices}` : '', w.seatsNote ? `Seats you wanted: ${w.seatsNote}` : '', `Book: ${link}`].filter(Boolean).join('\n');
             const rang = topic ? await ring(topic, `BOOKING OPEN: ${w.movieTitle}`.slice(0, 120), message, link).catch(() => false) : false;
@@ -141,8 +142,8 @@ async function main() {
         checks++;
         if (alerted.size === watches.length) break;
     }
-    // Tell the site the last check (shown in Settings), with any problem District gave
-    await site(`checker?from=github&last=${Date.now()}&n=${checks}&error=${encodeURIComponent(lastError.slice(0, 160))}`).catch(() => {});
+    // Saves Netlify credits: the site only hears back when District gave a problem (the run's start already said "running")
+    if (lastError) await site(`checker?from=github&last=${Date.now()}&n=${checks}&error=${encodeURIComponent(lastError.slice(0, 160))}`).catch(() => {});
     log(`Done: ${checks} check${checks === 1 ? '' : 's'}`);
 }
 await main();
