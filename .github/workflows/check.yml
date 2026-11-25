@@ -1,0 +1,22 @@
+name: TicketBookie checks
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+concurrency:
+  group: ticketbookie
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node check.mjs
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          SITE_PASSPHRASE: ${{ secrets.SITE_PASSPHRASE }}
+          RUN_MINUTES: '5'
