@@ -67,9 +67,9 @@ async function datesOnSale(movieUrl) {
 
 // ---------- the same matching rules as the site ----------
 function formatMatches(key, labels) {
-    const t = ' ' + labels.join(' | ').toUpperCase() + ' ', has3d = /\b3D\b|-3D\b/.test(t);
-    const rules = { any: true, '2d': !has3d, '3d': has3d, imax: /IMAX/.test(t), imax3d: /IMAX/.test(t) && has3d, '4dx3d': /4DX/.test(t) && has3d, ice3d: /\bICE\b/.test(t) && has3d,
-        screenx: /SCREEN\s?X/.test(t), infinity: /INFINITY VISION/.test(t), infinity3d: /INFINITY VISION/.test(t) && has3d };
+    const t = ' ' + labels.join(' | ').toUpperCase() + ' ', has3d = /\b3D\b|-3D\b/.test(t), special = /4DX|IMAX|\bICE\b|SCREEN\s?X/.test(t); // premium screens only when picked
+    const rules = { any: true, '2d': !has3d && !special, '3d': has3d && !special, imax: /IMAX/.test(t), imax3d: /IMAX/.test(t) && has3d, '4dx3d': /4DX/.test(t) && has3d, ice3d: /\bICE\b/.test(t) && has3d,
+        screenx: /SCREEN\s?X/.test(t), infinity: /INFINITY VISION/.test(t) && !special, infinity3d: /INFINITY VISION/.test(t) && has3d && !special };
     return key in rules ? rules[key] : t.includes(String(key).toUpperCase());
 }
 const FILLER = new Set(['bengaluru', 'bangalore', 'the', 'cinema', 'cinemas', 'multiplex', 'and', 'in', 'at', 'of', 'main', 'road', 'rd', 'mall', 'city', 'centre', 'center']);
@@ -120,7 +120,8 @@ async function checkAll(watches, topic, alerted) {
             const link = /^https:\/\/[^/]+\/\?book=/.test(w.bookUrl || '') ? w.bookUrl : `${w.movieUrl}?fromdate=${found[0].date}`;
             const lines = found.slice(0, 4).map(m => `${m.cinema}, ${prettyDate(m.date)}: ${m.shows.slice(0, 4).map(s => s.time + (s.format ? ` (${s.format})` : '')).join(', ')}`);
             const message = [`Booking is open for ${w.movieTitle}.`, ...lines, found[0].shows[0].prices ? `Tickets ${found[0].shows[0].prices}` : '', w.seatsNote ? `Seats you wanted: ${w.seatsNote}` : '', `Book: ${link}`].filter(Boolean).join('\n');
-            const rang = topic ? await ring(topic, `BOOKING OPEN: ${w.movieTitle}`.slice(0, 120), message, link).catch(() => false) : false;
+            const to = w.topic || topic; // each person's own alarm
+            const rang = to ? await ring(to, `BOOKING OPEN: ${w.movieTitle}`.slice(0, 120), message, link).catch(() => false) : false;
             alerted.add(w.id);
             log(`BOOKING OPEN: ${w.movieTitle} (${rang ? 'phone rung' : 'ntfy failed'})`);
             await site(`watches/found?id=${encodeURIComponent(w.id)}`, { found: found.slice(0, 12), rang }).catch(e => log('Couldn’t tell the site:', e.message));
@@ -133,10 +134,10 @@ async function checkAll(watches, topic, alerted) {
 async function main() {
     if (!/^https:\/\/[a-z0-9.-]+$/i.test(SITE)) { console.error('Add your site address as the SITE_URL secret (e.g. https://your-site.netlify.app).'); process.exit(1); }
     let list;
-    try { list = await site('checker?from=github&last=0&n=0'); }
+    try { list = await site('checker?from=github&last=0&n=0&v=2'); } // v=2: everyone's watches, each with their own topic
     catch (e) { console.error('Couldn’t reach your site:', e.message); process.exit(1); }
     const watches = list.items || [], topic = list.topic || '', alerted = new Set();
-    log(`${watches.length} watch${watches.length === 1 ? '' : 'es'} waiting${topic ? '' : ' (no ntfy topic set in Netlify)'}`);
+    log(`${watches.length} watch${watches.length === 1 ? '' : 'es'} waiting${topic || watches.every(w => w.topic) ? '' : ' (someone has no ntfy topic yet)'}`);
     if (!watches.length) return;
     const started = Date.now();
     let checks = 0, lastError = '';
@@ -148,7 +149,7 @@ async function main() {
         if (alerted.size === watches.length) break;
     }
     // Saves Netlify credits: the site only hears back when District gave a problem (the run's start already said "running")
-    if (lastError) await site(`checker?from=github&last=${Date.now()}&n=${checks}&error=${encodeURIComponent(lastError.slice(0, 160))}`).catch(() => {});
+    if (lastError) await site(`checker?from=github&last=${Date.now()}&n=${checks}&error=${encodeURIComponent(lastError.slice(0, 160))}&v=2`).catch(() => {});
     log(`Done: ${checks} check${checks === 1 ? '' : 's'}`);
 }
 await main();
