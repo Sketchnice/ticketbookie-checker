@@ -48,7 +48,7 @@ async function showsOn(movieUrl, date) {
         keys: [c.cinemaId, c.cinemaInfo?.id, c.sessions?.[0]?.cid].filter(v => v != null).map(String),
         name: String(c.cinemaInfo?.name || c.name || ''),
         sessions: (c.sessions || []).map(s => ({
-            time: istTime(s.showTime), audi: String(s.audi || ''), format: String(s.scrnFmt || ''),
+            time: istTime(s.showTime), audi: String(s.audi || ''), format: String(s.scrnFmt || ''), language: String(s.lang || s.language || s.languageName || s.langName || s.lng || '').trim(),
             avail: Number.isFinite(+s.avail) ? +s.avail : null, prices: (s.areas || []).map(a => Math.round(+a.price || 0)).filter(p => p > 0),
         })).filter(s => s.time),
     }));
@@ -111,7 +111,8 @@ async function checkAll(watches, topic, alerted) {
             for (const date of dates) {
                 for (const c of await showsOn(w.movieUrl, date)) {
                     if (w.theatres.length && !w.theatres.some(t => sameCinema(t, c))) continue;
-                    const shows = c.sessions.filter(s => s.avail !== 0 && w.formats.some(f => formatMatches(f, [s.format, s.audi].filter(Boolean))) && timeOk(w, s.time));
+                    const shows = c.sessions.filter(s => s.avail !== 0 && w.formats.some(f => formatMatches(f, [s.format, s.audi].filter(Boolean))) && timeOk(w, s.time)
+                        && (!w.language || !s.language || s.language.toLowerCase().startsWith(w.language.toLowerCase().slice(0, 4)))); // your language, when District says
                     if (shows.length) found.push({ date, cinema: c.name, cinemaId: c.id, shows: shows.slice(0, 6).map(s => ({ time: s.time, format: s.format, audi: s.audi, prices: priceText(s.prices) })) });
                 }
             }
